@@ -77,11 +77,6 @@ export default function Page() {
 
   useEffect(() => {
     clearTimeout(debounceRef.current);
-    if (!query.trim() && !semFoto) {
-      setResults([]);
-      setTotal(0);
-      return;
-    }
     debounceRef.current = setTimeout(async () => {
       setLoading(true);
       try {
@@ -240,25 +235,17 @@ export default function Page() {
       <main>
         {tab === 'catalogo' && (
           <div>
-            {!query.trim() && !semFoto && (
+            {!loading && results.length === 0 && (
               <div className="empty">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                   <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
                 </svg>
-                <p>Digite um codigo ou parte da descricao do material para comecar a busca.</p>
+                <p>{query.trim() ? 'Nenhum item encontrado para "' + query + '". Tente outro trecho do codigo ou da descricao.' : 'Nenhum item para mostrar.'}</p>
               </div>
             )}
-            {(query.trim() || semFoto) && !loading && results.length === 0 && (
-              <div className="empty">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-                </svg>
-                <p>Nenhum item encontrado para &quot;{query}&quot;. Tente outro trecho do codigo ou da descricao.</p>
-              </div>
-            )}
-            {(query.trim() || semFoto) && results.length > 0 && (
+            {results.length > 0 && (
               <>
-                <p className="resultcount">{total.toLocaleString('pt-BR')} resultado(s){total > results.length ? ' - mostrando os 60 primeiros' : ''}</p>
+                <p className="resultcount">{query.trim() || semFoto ? total.toLocaleString('pt-BR') + ' resultado(s)' : total.toLocaleString('pt-BR') + ' itens no catalogo'}{total > results.length ? ' - mostrando 60, use a busca para filtrar' : ''}</p>
                 <div className="grid">
                   {results.map(it => (
                     <button className="card" key={it.codigo} onClick={() => openModal(it)}>

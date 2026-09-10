@@ -11,16 +11,11 @@ export async function GET(request) {
   const q = (searchParams.get('q') || '').trim();
   const semFoto = searchParams.get('semfoto') === '1';
 
-  if (!q && !semFoto) {
-    return Response.json({ items: [], total: 0 });
-  }
-
-  const like = '%' + normalizar(q) + '%';
   const cond = [];
   const params = [];
 
   if (q) {
-    params.push(like);
+    params.push('%' + normalizar(q) + '%');
     cond.push('i.busca LIKE $' + params.length);
   }
   if (semFoto) {
@@ -39,7 +34,10 @@ export async function GET(request) {
      LEFT JOIN reference_notes r ON r.codigo = i.codigo
      LEFT JOIN duvidas d ON d.codigo = i.codigo
      ${where}
-     ORDER BY COALESCE(d.total, 0) DESC, i.descricao
+     ORDER BY (p.url IS NULL),
+              (r.img_url IS NULL),
+              COALESCE(d.total, 0) DESC,
+              i.descricao
      LIMIT 60`,
     params
   );
