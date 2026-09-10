@@ -1,7 +1,5 @@
 import { query } from '../../../lib/db';
 
-export const dynamic = 'force-dynamic';
-
 export async function POST(request) {
   const body = await request.json();
   const { codigo, status } = body;

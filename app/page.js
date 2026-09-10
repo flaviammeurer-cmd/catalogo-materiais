@@ -52,7 +52,9 @@ export default function Page() {
   const [results, setResults] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [stats, setStats] = useState({ total: 0, withPhoto: 0, pendingReview: 0 });
+  const [stats, setStats] = useState({ total: 0, withPhoto: 0, pendingReview: 0, duvidas: 0 });
+  const [semFoto, setSemFoto] = useState(false);
+  const [duvidaMsg, setDuvidaMsg] = useState('');
   const [modalItem, setModalItem] = useState(null);
   const [modalDetail, setModalDetail] = useState(null);
   const [uploadMsg, setUploadMsg] = useState({ text: '', kind: '' });
@@ -75,7 +77,7 @@ export default function Page() {
 
   useEffect(() => {
     clearTimeout(debounceRef.current);
-    if (!query.trim()) {
+    if (!query.trim() && !semFoto) {
       setResults([]);
       setTotal(0);
       return;
@@ -83,7 +85,7 @@ export default function Page() {
     debounceRef.current = setTimeout(async () => {
       setLoading(true);
       try {
-        const res = await fetch('/api/items?q=' + encodeURIComponent(query.trim()));
+        const res = await fetch('/api/items?q=' + encodeURIComponent(query.trim()) + (semFoto ? '&semfoto=1' : ''));
         const data = await res.json();
         setResults(data.items);
         setTotal(data.total);
@@ -93,12 +95,13 @@ export default function Page() {
       }
       setLoading(false);
     }, 150);
-  }, [query]);
+  }, [query, semFoto]);
 
   async function openModal(item) {
     setModalItem(item);
     setModalDetail(null);
     setUploadMsg({ text: '', kind: '' });
+    setDuvidaMsg('');
     try {
       const res = await fetch('/api/items/' + encodeURIComponent(item.codigo));
       const data = await res.json();
@@ -167,6 +170,21 @@ export default function Page() {
     refreshStats();
   }
 
+  async function marcarDuvida() {
+    if (!modalItem) return;
+    try {
+      await fetch('/api/duvidas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codigo: modalItem.codigo })
+      });
+      setDuvidaMsg('Marcado. Esse item entra na frente da fila de fotos.');
+      refreshStats();
+    } catch (e) {
+      setDuvidaMsg('Nao foi possivel marcar agora.');
+    }
+  }
+
   const currentQueueItem = queue[queueIdx];
 
   return (
@@ -201,13 +219,28 @@ export default function Page() {
               {stats.pendingReview > 0 && <span className="count">{' ' + stats.pendingReview}</span>}
             </button>
           </div>
+          {tab === 'catalogo' && (
+            <div className="tabs" style={{ marginTop: 8 }}>
+              <button
+                className={'tabbtn' + (semFoto ? ' active' : '')}
+                onClick={() => setSemFoto(v => !v)}
+              >
+                Só os que faltam foto
+              </button>
+              {stats.duvidas > 0 && (
+                <span className="stat" style={{ padding: '7px 12px' }}>
+                  <b>{stats.duvidas}</b> marcados como dúvida
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </header>
 
       <main>
         {tab === 'catalogo' && (
           <div>
-            {!query.trim() && (
+            {!query.trim() && !semFoto && (
               <div className="empty">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                   <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -215,7 +248,7 @@ export default function Page() {
                 <p>Digite um codigo ou parte da descricao do material para comecar a busca.</p>
               </div>
             )}
-            {query.trim() && !loading && results.length === 0 && (
+            {(query.trim() || semFoto) && !loading && results.length === 0 && (
               <div className="empty">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                   <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -223,7 +256,7 @@ export default function Page() {
                 <p>Nenhum item encontrado para &quot;{query}&quot;. Tente outro trecho do codigo ou da descricao.</p>
               </div>
             )}
-            {query.trim() && results.length > 0 && (
+            {(query.trim() || semFoto) && results.length > 0 && (
               <>
                 <p className="resultcount">{total.toLocaleString('pt-BR')} resultado(s){total > results.length ? ' - mostrando os 60 primeiros' : ''}</p>
                 <div className="grid">
@@ -348,6 +381,19 @@ export default function Page() {
             </div>
             <input ref={fileInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileChange} />
             <div className={'uploadstate' + (uploadMsg.kind ? ' ' + uploadMsg.kind : '')}>{uploadMsg.text}</div>
+            {!modalDetail?.photo_url && (
+              <div style={{ marginTop: 4, textAlign: 'center' }}>
+                <button
+                  className="btn"
+                  style={{ border: 'none', color: 'var(--ink-soft)', fontSize: 12.5 }}
+                  onClick={marcarDuvida}
+                  disabled={!!duvidaMsg}
+                >
+                  Não sei o que é esse item
+                </button>
+                {duvidaMsg && <div className="uploadstate ok">{duvidaMsg}</div>}
+              </div>
+            )}
           </div>
         </div>
       )}

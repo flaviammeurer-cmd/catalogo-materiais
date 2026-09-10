@@ -1,32 +1,39 @@
--- Tabela principal: todos os itens ativos importados da planilha
 CREATE TABLE IF NOT EXISTS items (
   codigo TEXT PRIMARY KEY,
   sistema_id BIGINT,
-  descricao TEXT NOT NULL
+  descricao TEXT NOT NULL,
+  busca TEXT
 );
 
-CREATE INDEX IF NOT EXISTS idx_items_descricao ON items USING gin (to_tsvector('portuguese', descricao));
+ALTER TABLE items ADD COLUMN IF NOT EXISTS busca TEXT;
+CREATE INDEX IF NOT EXISTS idx_items_busca ON items (busca);
 
--- Foto real, tirada e enviada pela equipe (fonte confiavel)
 CREATE TABLE IF NOT EXISTS photos (
   codigo TEXT PRIMARY KEY REFERENCES items(codigo) ON DELETE CASCADE,
   url TEXT NOT NULL,
+  autor TEXT,
   uploaded_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Referencia sugerida (foto e nota vindas de busca na web, ainda nao confirmada)
+ALTER TABLE photos ADD COLUMN IF NOT EXISTS autor TEXT;
+
 CREATE TABLE IF NOT EXISTS reference_notes (
   codigo TEXT PRIMARY KEY REFERENCES items(codigo) ON DELETE CASCADE,
   note TEXT NOT NULL,
-  confidence TEXT NOT NULL CHECK (confidence IN ('alta', 'media', 'baixa')),
+  confidence TEXT NOT NULL,
   img_url TEXT,
   source_site TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Decisao da equipe sobre uma referencia sugerida (sim / nao)
 CREATE TABLE IF NOT EXISTS reviews (
   codigo TEXT PRIMARY KEY REFERENCES items(codigo) ON DELETE CASCADE,
-  status TEXT NOT NULL CHECK (status IN ('sim', 'nao')),
+  status TEXT NOT NULL,
   reviewed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS duvidas (
+  codigo TEXT PRIMARY KEY REFERENCES items(codigo) ON DELETE CASCADE,
+  total INT NOT NULL DEFAULT 1,
+  ultima_em TIMESTAMPTZ NOT NULL DEFAULT now()
 );

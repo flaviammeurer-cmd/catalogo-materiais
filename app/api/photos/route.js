@@ -1,8 +1,6 @@
 import { getStore } from '@netlify/blobs';
 import { query } from '../../../lib/db';
 
-export const dynamic = 'force-dynamic';
-
 export async function POST(request) {
   const formData = await request.formData();
   const codigo = formData.get('codigo');
@@ -30,6 +28,7 @@ export async function POST(request) {
     [codigo, url]
   );
 
+  // Uma foto real confirmada resolve a pendencia de revisao, se existir
   await query('DELETE FROM reviews WHERE codigo = $1', [codigo]);
 
   return Response.json({ url });
