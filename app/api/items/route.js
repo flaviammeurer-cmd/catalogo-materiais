@@ -18,14 +18,15 @@ export async function GET(request) {
 
   if (q) {
     params.push('%' + normalizar(q) + '%');
-    cond.push('i.busca LIKE $' + params.length);
+    cond.push('(i.busca LIKE $' + params.length + ' OR lower(i.descricao) LIKE $' + params.length + ' OR i.codigo LIKE $' + params.length + ')');
   }
   if (semFoto) {
     cond.push('p.codigo IS NULL');
   }
   const where = cond.length ? 'WHERE ' + cond.join(' AND ') : '';
+  const limite = ' LIMIT ' + POR_PAGINA + ' OFFSET ' + ((pagina - 1) * POR_PAGINA);
 
-  const result = await query(
+  const completa =
     `SELECT i.codigo, i.sistema_id, i.descricao,
             p.url AS photo_url,
             r.img_url AS ref_img_url,
@@ -38,26 +39,40 @@ export async function GET(request) {
      LEFT JOIN duvidas d ON d.codigo = i.codigo
      LEFT JOIN fichas f ON f.codigo = i.codigo
      ${where}
-     ORDER BY (p.url IS NULL),
-              (r.img_url IS NULL),
-              COALESCE(d.total, 0) DESC,
-              i.descricao
-     LIMIT ${POR_PAGINA} OFFSET ${(pagina - 1) * POR_PAGINA}`,
-    params
-  );
+     ORDER BY (p.url IS NULL), (r.img_url IS NULL), COALESCE(d.total, 0) DESC, i.descricao` + limite;
 
-  const countResult = await query(
-    `SELECT count(*)::int AS total
+  // Se alguma tabela nova ainda nao existir no banco, cai para a versao simples
+  const simples =
+    `SELECT i.codigo, i.sistema_id, i.descricao,
+            p.url AS photo_url,
+            NULL AS ref_img_url,
+            NULL AS ref_confidence,
+            0 AS duvidas,
+            false AS tem_ficha
      FROM items i
      LEFT JOIN photos p ON p.codigo = i.codigo
-     ${where}`,
-    params
-  );
+     ${where}
+     ORDER BY (p.url IS NULL), i.descricao` + limite;
 
-  return Response.json({
-    items: result.rows,
-    total: countResult.rows[0].total,
-    pagina,
-    porPagina: POR_PAGINA
-  });
+  let result;
+  try {
+    result = await query(completa, params);
+  } catch (e) {
+    try {
+      result = await query(simples, params);
+    } catch (e2) {
+      return Response.json({ items: [], total: 0, pagina, porPagina: POR_PAGINA, aviso: 'banco desatualizado' });
+    }
+  }
+
+  let total = result.rows.length;
+  try {
+    const c = await query(
+      `SELECT count(*)::int AS total FROM items i LEFT JOIN photos p ON p.codigo = i.codigo ${where}`,
+      params
+    );
+    total = c.rows[0].total;
+  } catch (e) { /* mantem a contagem aproximada */ }
+
+  return Response.json({ items: result.rows, total, pagina, porPagina: POR_PAGINA });
 }

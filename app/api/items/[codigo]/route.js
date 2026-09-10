@@ -5,7 +5,9 @@ export const dynamic = 'force-dynamic';
 export async function GET(request, { params }) {
   const codigo = params.codigo;
 
-  const result = await query(
+  let result;
+  try {
+    result = await query(
     `SELECT
        i.codigo,
        i.sistema_id,
@@ -23,8 +25,14 @@ export async function GET(request, { params }) {
      LEFT JOIN reviews rv ON rv.codigo = i.codigo
      LEFT JOIN fichas f ON f.codigo = i.codigo
      WHERE i.codigo = $1`,
-    [codigo]
-  );
+      [codigo]
+    );
+  } catch (e) {
+    result = await query(
+      'SELECT i.codigo, i.sistema_id, i.descricao, p.url AS photo_url, NULL AS ref_note, NULL AS ref_confidence, NULL AS ref_img_url, NULL AS ref_source, NULL AS review_status, NULL AS ficha_nome FROM items i LEFT JOIN photos p ON p.codigo = i.codigo WHERE i.codigo = $1',
+      [codigo]
+    );
+  }
 
   if (result.rows.length === 0) {
     return Response.json({ error: 'Item nao encontrado' }, { status: 404 });
