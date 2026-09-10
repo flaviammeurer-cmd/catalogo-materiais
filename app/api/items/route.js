@@ -30,11 +30,13 @@ export async function GET(request) {
             p.url AS photo_url,
             r.img_url AS ref_img_url,
             r.confidence AS ref_confidence,
-            COALESCE(d.total, 0) AS duvidas
+            COALESCE(d.total, 0) AS duvidas,
+            (f.codigo IS NOT NULL) AS tem_ficha
      FROM items i
      LEFT JOIN photos p ON p.codigo = i.codigo
      LEFT JOIN reference_notes r ON r.codigo = i.codigo
      LEFT JOIN duvidas d ON d.codigo = i.codigo
+     LEFT JOIN fichas f ON f.codigo = i.codigo
      ${where}
      ORDER BY (p.url IS NULL),
               (r.img_url IS NULL),

@@ -64,6 +64,7 @@ export default function Page() {
   const [modalDetail, setModalDetail] = useState(null);
   const [uploadMsg, setUploadMsg] = useState({ text: '', kind: '' });
   const fileInputRef = useRef(null);
+  const fichaInputRef = useRef(null);
   const debounceRef = useRef(null);
 
   const [queue, setQueue] = useState([]);
@@ -234,6 +235,40 @@ export default function Page() {
     }
   }
 
+  async function enviarFicha(e) {
+    const file = e.target.files[0];
+    if (!file || !modalItem) return;
+    setUploadMsg({ text: 'Enviando ficha...', kind: '' });
+    try {
+      const form = new FormData();
+      form.append('codigo', modalItem.codigo);
+      form.append('file', file, file.name);
+      const res = await fetch('/api/fichas', { method: 'POST', body: form });
+      if (!res.ok) throw new Error('falha');
+      const data = await res.json();
+      setModalDetail(prev => ({ ...prev, ficha_nome: data.nome }));
+      setResults(prev => prev.map(it => it.codigo === modalItem.codigo ? { ...it, tem_ficha: true } : it));
+      setUploadMsg({ text: 'Ficha tecnica anexada.', kind: 'ok' });
+    } catch (err) {
+      setUploadMsg({ text: 'Nao foi possivel anexar a ficha.', kind: 'err' });
+    }
+    e.target.value = '';
+  }
+
+  async function removerFicha() {
+    if (!modalItem) return;
+    if (!window.confirm('Remover a ficha tecnica deste item?')) return;
+    try {
+      const res = await fetch('/api/fichas?codigo=' + encodeURIComponent(modalItem.codigo), { method: 'DELETE' });
+      if (!res.ok) throw new Error('falha');
+      setModalDetail(prev => ({ ...prev, ficha_nome: null }));
+      setResults(prev => prev.map(it => it.codigo === modalItem.codigo ? { ...it, tem_ficha: false } : it));
+      setUploadMsg({ text: 'Ficha removida.', kind: 'ok' });
+    } catch (e) {
+      setUploadMsg({ text: 'Nao foi possivel remover a ficha.', kind: 'err' });
+    }
+  }
+
   async function marcarDuvida() {
     if (!modalItem) return;
     try {
@@ -383,6 +418,12 @@ export default function Page() {
                       <div className="cardbody">
                         <span className="code">{it.codigo}</span>
                         <span className="desc">{it.descricao}</span>
+                        {it.tem_ficha && (
+                          <span style={{ fontSize: 11, color: 'var(--blue)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 11, height: 11 }}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+                            ficha tecnica
+                          </span>
+                        )}
                       </div>
                     </button>
                   ))}
@@ -488,6 +529,18 @@ export default function Page() {
                 {modalDetail.ref_note}
               </div>
             )}
+            {modalDetail?.ficha_nome && (
+              <a
+                className="weblink"
+                href={(modalDetail?.ficha_nome || '').toLowerCase().endsWith('.pdf') && !String(modalDetail?.ficha_nome).startsWith('upload:') ? '/fichas/' + modalDetail.ficha_nome : '/api/ficha-file/' + encodeURIComponent(modalItem.codigo)}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ display: 'flex', justifyContent: 'center', marginBottom: 2 }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="8" y1="13" x2="16" y2="13" /><line x1="8" y1="17" x2="16" y2="17" /></svg>
+                Ver ficha tecnica
+              </a>
+            )}
             <a className="weblink" href={imgSearchUrl(modalItem.codigo, modalItem.descricao)} target="_blank" rel="noopener noreferrer">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
               Ver fotos na internet
@@ -517,6 +570,27 @@ export default function Page() {
                 )}
               </div>
             )}
+            {papel === 'edicao' && (
+              <div style={{ textAlign: 'center', marginTop: 6 }}>
+                <button
+                  className="btn"
+                  style={{ border: 'none', color: 'var(--blue)', fontSize: 12.5 }}
+                  onClick={() => fichaInputRef.current?.click()}
+                >
+                  {modalDetail?.ficha_nome ? 'Trocar ficha tecnica' : 'Anexar ficha tecnica (PDF)'}
+                </button>
+                {modalDetail?.ficha_nome && (
+                  <button
+                    className="btn"
+                    style={{ border: 'none', color: 'var(--red)', fontSize: 12.5 }}
+                    onClick={removerFicha}
+                  >
+                    Remover ficha
+                  </button>
+                )}
+              </div>
+            )}
+            <input ref={fichaInputRef} type="file" accept="application/pdf" onChange={enviarFicha} />
             <input ref={fileInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileChange} />
             <div className={'uploadstate' + (uploadMsg.kind ? ' ' + uploadMsg.kind : '')}>{uploadMsg.text}</div>
             {!modalDetail?.photo_url && (

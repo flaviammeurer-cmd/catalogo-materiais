@@ -69,6 +69,46 @@ async function main() {
     );
   }
   console.log('Referencias importadas.');
+
+  // Fotos e fichas do fornecedor: arquivos em public/fotos e public/fichas,
+  // servidos direto pelo site (nao precisam de upload)
+  const dirFotos = path.join(__dirname, '../public/fotos');
+  const dirFichas = path.join(__dirname, '../public/fichas');
+
+  if (fs.existsSync(dirFotos)) {
+    const arquivos = fs.readdirSync(dirFotos).filter(f => /\.(jpg|jpeg|png|webp)$/i.test(f));
+    let n = 0;
+    for (const arq of arquivos) {
+      const codigo = arq.replace(/\.[^.]+$/, '');
+      const existe = await query('SELECT codigo FROM items WHERE codigo = $1', [codigo]);
+      if (existe.rows.length === 0) continue;
+      await query(
+        'INSERT INTO photos (codigo, url, uploaded_at) VALUES ($1,$2,now()) ON CONFLICT (codigo) DO UPDATE SET url = EXCLUDED.url, uploaded_at = now()',
+        [codigo, '/fotos/' + arq]
+      );
+      await query('DELETE FROM reference_notes WHERE codigo = $1', [codigo]);
+      await query('DELETE FROM duvidas WHERE codigo = $1', [codigo]);
+      n++;
+    }
+    console.log('Fotos do fornecedor registradas:', n);
+  }
+
+  if (fs.existsSync(dirFichas)) {
+    const arquivos = fs.readdirSync(dirFichas).filter(f => /\.pdf$/i.test(f));
+    let n = 0;
+    for (const arq of arquivos) {
+      const codigo = arq.replace(/\.[^.]+$/, '');
+      const existe = await query('SELECT codigo FROM items WHERE codigo = $1', [codigo]);
+      if (existe.rows.length === 0) continue;
+      await query(
+        'INSERT INTO fichas (codigo, nome_arquivo, enviada_em) VALUES ($1,$2,now()) ON CONFLICT (codigo) DO UPDATE SET nome_arquivo = EXCLUDED.nome_arquivo, enviada_em = now()',
+        [codigo, arq]
+      );
+      n++;
+    }
+    console.log('Fichas tecnicas registradas:', n);
+  }
+
   console.log('Seed finalizado.');
   process.exit(0);
 }

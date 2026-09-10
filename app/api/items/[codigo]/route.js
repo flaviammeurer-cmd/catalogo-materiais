@@ -15,11 +15,13 @@ export async function GET(request, { params }) {
        r.confidence AS ref_confidence,
        r.img_url AS ref_img_url,
        r.source_site AS ref_source,
-       rv.status AS review_status
+       rv.status AS review_status,
+       f.nome_arquivo AS ficha_nome
      FROM items i
      LEFT JOIN photos p ON p.codigo = i.codigo
      LEFT JOIN reference_notes r ON r.codigo = i.codigo
      LEFT JOIN reviews rv ON rv.codigo = i.codigo
+     LEFT JOIN fichas f ON f.codigo = i.codigo
      WHERE i.codigo = $1`,
     [codigo]
   );
