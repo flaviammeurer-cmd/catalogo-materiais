@@ -1,4 +1,6 @@
-import { sql } from '../../../lib/db';
+import { query } from '../../../lib/db';
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(request) {
   const body = await request.json();
@@ -8,11 +10,12 @@ export async function POST(request) {
     return Response.json({ error: 'codigo e status (sim/nao) sao obrigatorios' }, { status: 400 });
   }
 
-  await sql`
-    INSERT INTO reviews (codigo, status, reviewed_at)
-    VALUES (${codigo}, ${status}, now())
-    ON CONFLICT (codigo) DO UPDATE SET status = EXCLUDED.status, reviewed_at = now()
-  `;
+  await query(
+    `INSERT INTO reviews (codigo, status, reviewed_at)
+     VALUES ($1, $2, now())
+     ON CONFLICT (codigo) DO UPDATE SET status = EXCLUDED.status, reviewed_at = now()`,
+    [codigo, status]
+  );
 
   return Response.json({ ok: true });
 }
