@@ -73,7 +73,12 @@ export default function Page() {
     try {
       const res = await fetch('/api/stats');
       const data = await res.json();
-      setStats(data);
+      setStats({
+        total: Number(data.total) || 0,
+        withPhoto: Number(data.withPhoto) || 0,
+        pendingReview: Number(data.pendingReview) || 0,
+        duvidas: Number(data.duvidas) || 0
+      });
     } catch (e) { /* silencioso */ }
   }, []);
 
@@ -101,8 +106,8 @@ export default function Page() {
       try {
         const res = await fetch('/api/items?q=' + encodeURIComponent(query.trim()) + (semFoto ? '&semfoto=1' : '') + '&pagina=' + pagina);
         const data = await res.json();
-        setResults(data.items);
-        setTotal(data.total);
+        setResults(Array.isArray(data.items) ? data.items : []);
+        setTotal(Number(data.total) || 0);
       } catch (e) {
         setResults([]);
         setTotal(0);
@@ -157,7 +162,7 @@ export default function Page() {
     try {
       const res = await fetch('/api/confirm-queue');
       const data = await res.json();
-      setQueue(data.items);
+      setQueue(Array.isArray(data.items) ? data.items : []);
     } catch (e) {
       setQueue([]);
     }
@@ -231,7 +236,7 @@ export default function Page() {
               />
             </div>
             <div className="stat">
-              <b>{stats.withPhoto.toLocaleString('pt-BR')}</b> de {stats.total.toLocaleString('pt-BR')} com foto
+              <b>{(stats.withPhoto || 0).toLocaleString('pt-BR')}</b> de {(stats.total || 0).toLocaleString('pt-BR')} com foto
             </div>
             <button className="tabbtn" onClick={sair} title={papel === 'edicao' ? 'Acesso para contribuir' : 'Acesso de consulta'}>
               {papel === 'edicao' ? 'Contribuindo' : 'Consulta'} · sair
@@ -277,7 +282,7 @@ export default function Page() {
             )}
             {results.length > 0 && (
               <>
-                <p className="resultcount">{query.trim() || semFoto ? total.toLocaleString('pt-BR') + ' resultado(s)' : total.toLocaleString('pt-BR') + ' itens no catalogo'}</p>
+                <p className="resultcount">{query.trim() || semFoto ? (total || 0).toLocaleString('pt-BR') + ' resultado(s)' : (total || 0).toLocaleString('pt-BR') + ' itens no catalogo'}</p>
                 <div className="grid">
                   {results.map(it => (
                     <button className="card" key={it.codigo} onClick={() => openModal(it)}>
@@ -313,9 +318,9 @@ export default function Page() {
                       Anterior
                     </button>
                     <span style={{ fontSize: 13, color: 'var(--ink-soft)' }}>
-                      Pagina {pagina} de {Math.ceil(total / porPagina).toLocaleString('pt-BR')}
+                      Pagina {pagina} de {Math.max(1, Math.ceil((total || 0) / porPagina)).toLocaleString('pt-BR')}
                     </span>
-                    <button onClick={() => { setPagina(p => p + 1); window.scrollTo(0, 0); }} disabled={pagina >= Math.ceil(total / porPagina)}>
+                    <button onClick={() => { setPagina(p => p + 1); window.scrollTo(0, 0); }} disabled={pagina >= Math.ceil((total || 0) / porPagina)}>
                       Proxima
                     </button>
                   </div>
