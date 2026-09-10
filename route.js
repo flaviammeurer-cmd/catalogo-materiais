@@ -1,5 +1,7 @@
 import { query } from '../../../lib/db';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const totalResult = await query('SELECT count(*)::int AS total FROM items');
   const withPhotoResult = await query('SELECT count(*)::int AS total FROM photos');
