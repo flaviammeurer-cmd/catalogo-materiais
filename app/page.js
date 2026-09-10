@@ -174,6 +174,81 @@ export default function Page() {
     if (next === 'confirmar' && !queueLoaded) loadQueue();
   }
 
+  async function entrar() {
+    setLoginErro('');
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ senha })
+      });
+      if (!res.ok) {
+        setLoginErro('Senha incorreta.');
+        return;
+      }
+      const data = await res.json();
+      setPapel(data.papel);
+      setSenha('');
+    } catch (e) {
+      setLoginErro('Nao foi possivel entrar agora.');
+    }
+  }
+
+  async function sair() {
+    try { await fetch('/api/logout', { method: 'POST' }); } catch (e) {}
+    setPapel(null);
+    setResults([]);
+    setQuery('');
+    setTab('catalogo');
+  }
+
+  async function excluirFoto() {
+    if (!modalItem) return;
+    if (!window.confirm('Excluir a foto deste item?')) return;
+    setUploadMsg({ text: 'Excluindo...', kind: '' });
+    try {
+      const res = await fetch('/api/photos?codigo=' + encodeURIComponent(modalItem.codigo), { method: 'DELETE' });
+      if (!res.ok) throw new Error('falha');
+      setModalDetail(prev => ({ ...prev, photo_url: null }));
+      setResults(prev => prev.map(it => it.codigo === modalItem.codigo ? { ...it, photo_url: null } : it));
+      setUploadMsg({ text: 'Foto excluida.', kind: 'ok' });
+      refreshStats();
+    } catch (e) {
+      setUploadMsg({ text: 'Nao foi possivel excluir.', kind: 'err' });
+    }
+  }
+
+  async function removerReferencia() {
+    if (!modalItem) return;
+    if (!window.confirm('Remover a foto/nota de referencia deste item?')) return;
+    setUploadMsg({ text: 'Removendo...', kind: '' });
+    try {
+      const res = await fetch('/api/referencias?codigo=' + encodeURIComponent(modalItem.codigo), { method: 'DELETE' });
+      if (!res.ok) throw new Error('falha');
+      setModalDetail(prev => ({ ...prev, ref_img_url: null, ref_note: null }));
+      setResults(prev => prev.map(it => it.codigo === modalItem.codigo ? { ...it, ref_img_url: null } : it));
+      setUploadMsg({ text: 'Referencia removida.', kind: 'ok' });
+      refreshStats();
+    } catch (e) {
+      setUploadMsg({ text: 'Nao foi possivel remover.', kind: 'err' });
+    }
+  }
+
+  async function marcarDuvida() {
+    if (!modalItem) return;
+    try {
+      await fetch('/api/duvidas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codigo: modalItem.codigo })
+      });
+      setDuvidaMsg('Marcado. Esse item entra na frente da fila de fotos.');
+      refreshStats();
+    } catch (e) {
+      setDuvidaMsg('Nao foi possivel marcar agora.');
+    }
+  }
+
   async function decide(codigo, status) {
     setQueue(prev => prev.filter(it => it.codigo !== codigo));
     try {
