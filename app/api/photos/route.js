@@ -1,7 +1,14 @@
 import { getStore } from '@netlify/blobs';
 import { query } from '../../../lib/db';
+import { papelDaRequisicao } from '../../../lib/auth';
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(request) {
+  if (papelDaRequisicao(request) !== 'edicao') {
+    return Response.json({ error: 'Sem permissao' }, { status: 403 });
+  }
+
   const formData = await request.formData();
   const codigo = formData.get('codigo');
   const file = formData.get('file');
@@ -19,7 +26,7 @@ export async function POST(request) {
   const arrayBuffer = await file.arrayBuffer();
   await store.set(codigo, arrayBuffer);
 
-  const url = '/api/photo-file/' + encodeURIComponent(codigo);
+  const url = '/api/photo-file/' + encodeURIComponent(codigo) + '?v=' + Date.now();
 
   await query(
     `INSERT INTO photos (codigo, url, uploaded_at)
@@ -28,8 +35,31 @@ export async function POST(request) {
     [codigo, url]
   );
 
-  // Uma foto real confirmada resolve a pendencia de revisao, se existir
   await query('DELETE FROM reviews WHERE codigo = $1', [codigo]);
+  await query('DELETE FROM duvidas WHERE codigo = $1', [codigo]);
 
   return Response.json({ url });
+}
+
+export async function DELETE(request) {
+  if (papelDaRequisicao(request) !== 'edicao') {
+    return Response.json({ error: 'Sem permissao' }, { status: 403 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const codigo = searchParams.get('codigo');
+  if (!codigo) {
+    return Response.json({ error: 'codigo obrigatorio' }, { status: 400 });
+  }
+
+  try {
+    const store = getStore('fotos');
+    await store.delete(codigo);
+  } catch (e) {
+    // segue mesmo se o arquivo ja nao existir
+  }
+
+  await query('DELETE FROM photos WHERE codigo = $1', [codigo]);
+
+  return Response.json({ ok: true });
 }

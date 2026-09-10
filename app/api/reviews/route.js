@@ -1,8 +1,14 @@
 import { query } from '../../../lib/db';
+import { papelDaRequisicao } from '../../../lib/auth';
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(request) {
-  const body = await request.json();
-  const { codigo, status } = body;
+  if (papelDaRequisicao(request) !== 'edicao') {
+    return Response.json({ error: 'Sem permissao' }, { status: 403 });
+  }
+
+  const { codigo, status } = await request.json();
 
   if (!codigo || !['sim', 'nao'].includes(status)) {
     return Response.json({ error: 'codigo e status (sim/nao) sao obrigatorios' }, { status: 400 });

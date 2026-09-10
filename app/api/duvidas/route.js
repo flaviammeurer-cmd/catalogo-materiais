@@ -1,8 +1,13 @@
 import { query } from '../../../lib/db';
+import { papelDaRequisicao } from '../../../lib/auth';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request) {
+  if (!papelDaRequisicao(request)) {
+    return Response.json({ error: 'Sem permissao' }, { status: 403 });
+  }
+
   const { codigo } = await request.json();
   if (!codigo) {
     return Response.json({ error: 'codigo obrigatorio' }, { status: 400 });

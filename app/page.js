@@ -54,6 +54,9 @@ export default function Page() {
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState({ total: 0, withPhoto: 0, pendingReview: 0, duvidas: 0 });
   const [semFoto, setSemFoto] = useState(false);
+  const [papel, setPapel] = useState(undefined);
+  const [senha, setSenha] = useState('');
+  const [loginErro, setLoginErro] = useState('');
   const [duvidaMsg, setDuvidaMsg] = useState('');
   const [modalItem, setModalItem] = useState(null);
   const [modalDetail, setModalDetail] = useState(null);
@@ -73,9 +76,22 @@ export default function Page() {
     } catch (e) { /* silencioso */ }
   }, []);
 
-  useEffect(() => { refreshStats(); }, [refreshStats]);
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/me');
+        const data = await res.json();
+        setPapel(data.papel);
+      } catch (e) {
+        setPapel(null);
+      }
+    })();
+  }, []);
+
+  useEffect(() => { if (papel) refreshStats(); }, [papel, refreshStats]);
 
   useEffect(() => {
+    if (!papel) return;
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       setLoading(true);
@@ -90,7 +106,7 @@ export default function Page() {
       }
       setLoading(false);
     }, 150);
-  }, [query, semFoto]);
+  }, [query, semFoto, papel]);
 
   async function openModal(item) {
     setModalItem(item);
@@ -165,6 +181,49 @@ export default function Page() {
     refreshStats();
   }
 
+  async function entrar() {
+    setLoginErro('');
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ senha })
+      });
+      if (!res.ok) {
+        setLoginErro('Senha incorreta.');
+        return;
+      }
+      const data = await res.json();
+      setPapel(data.papel);
+      setSenha('');
+    } catch (e) {
+      setLoginErro('Nao foi possivel entrar agora.');
+    }
+  }
+
+  async function sair() {
+    try { await fetch('/api/logout', { method: 'POST' }); } catch (e) {}
+    setPapel(null);
+    setResults([]);
+    setQuery('');
+  }
+
+  async function excluirFoto() {
+    if (!modalItem) return;
+    if (!confirm('Excluir a foto deste item?')) return;
+    setUploadMsg({ text: 'Excluindo...', kind: '' });
+    try {
+      const res = await fetch('/api/photos?codigo=' + encodeURIComponent(modalItem.codigo), { method: 'DELETE' });
+      if (!res.ok) throw new Error('falha');
+      setModalDetail(prev => ({ ...prev, photo_url: null }));
+      setResults(prev => prev.map(it => it.codigo === modalItem.codigo ? { ...it, photo_url: null } : it));
+      setUploadMsg({ text: 'Foto excluida.', kind: 'ok' });
+      refreshStats();
+    } catch (e) {
+      setUploadMsg({ text: 'Nao foi possivel excluir.', kind: 'err' });
+    }
+  }
+
   async function marcarDuvida() {
     if (!modalItem) return;
     try {
@@ -181,6 +240,35 @@ export default function Page() {
   }
 
   const currentQueueItem = queue[queueIdx];
+
+  if (papel === undefined) {
+    return <main><div className="empty">Carregando...</div></main>;
+  }
+
+  if (!papel) {
+    return (
+      <main>
+        <div className="confirmwrap" style={{ maxWidth: 380 }}>
+          <div className="confirmcard">
+            <h1 style={{ marginBottom: 4 }}>Catalogo de materiais</h1>
+            <p className="sub" style={{ marginBottom: 18 }}>Informe a senha de acesso.</p>
+            <input
+              type="password"
+              placeholder="Senha"
+              value={senha}
+              onChange={e => setSenha(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') entrar(); }}
+              style={{ width: '100%', height: 44, borderRadius: 'var(--radius)', border: '1px solid var(--line-strong)', padding: '0 14px', fontSize: 15, outline: 'none' }}
+            />
+            <div className="filerow">
+              <button className="btn btn-primary" onClick={entrar}>Entrar</button>
+            </div>
+            {loginErro && <div className="uploadstate err">{loginErro}</div>}
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <>
@@ -204,6 +292,9 @@ export default function Page() {
             <div className="stat">
               <b>{stats.withPhoto.toLocaleString('pt-BR')}</b> de {stats.total.toLocaleString('pt-BR')} com foto
             </div>
+            <button className="tabbtn" onClick={sair} title={papel === 'edicao' ? 'Acesso para contribuir' : 'Acesso de consulta'}>
+              {papel === 'edicao' ? 'Contribuindo' : 'Consulta'} · sair
+            </button>
           </div>
           <div className="tabs">
             <button className={'tabbtn' + (tab === 'catalogo' ? ' active' : '')} onClick={() => switchTab('catalogo')}>
@@ -308,6 +399,7 @@ export default function Page() {
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
                     Ver fotos na internet
                   </a>
+                  {papel === 'edicao' && (
                   <div className="confirmbtns">
                     <button className="btn btn-no" onClick={() => decide('nao')}>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
@@ -318,6 +410,7 @@ export default function Page() {
                       Sim, confere
                     </button>
                   </div>
+                  )}
                   <div style={{ textAlign: 'center', marginTop: 10 }}>
                     <button className="btn" style={{ border: 'none', color: 'var(--ink-faint)' }} onClick={() => setQueueIdx(i => i + 1)}>
                       Pular por agora
@@ -360,12 +453,20 @@ export default function Page() {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
               Ver fotos na internet
             </a>
-            <div className="filerow">
-              <button className="btn btn-primary" onClick={() => fileInputRef.current?.click()}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>
-                {modalDetail?.photo_url ? 'Trocar foto' : 'Tirar ou enviar foto'}
-              </button>
-            </div>
+            {papel === 'edicao' && (
+              <div className="filerow">
+                <button className="btn btn-primary" onClick={() => fileInputRef.current?.click()}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>
+                  {modalDetail?.photo_url ? 'Trocar foto' : 'Tirar ou enviar foto'}
+                </button>
+                {modalDetail?.photo_url && (
+                  <button className="btn btn-no" onClick={excluirFoto} style={{ flex: '0 0 auto', padding: '0 14px' }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /></svg>
+                    Excluir
+                  </button>
+                )}
+              </div>
+            )}
             <input ref={fileInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileChange} />
             <div className={'uploadstate' + (uploadMsg.kind ? ' ' + uploadMsg.kind : '')}>{uploadMsg.text}</div>
             {!modalDetail?.photo_url && (
