@@ -57,6 +57,8 @@ export default function Page() {
   const [papel, setPapel] = useState(undefined);
   const [senha, setSenha] = useState('');
   const [loginErro, setLoginErro] = useState('');
+  const [pagina, setPagina] = useState(1);
+  const porPagina = 60;
   const [duvidaMsg, setDuvidaMsg] = useState('');
   const [modalItem, setModalItem] = useState(null);
   const [modalDetail, setModalDetail] = useState(null);
@@ -65,7 +67,6 @@ export default function Page() {
   const debounceRef = useRef(null);
 
   const [queue, setQueue] = useState([]);
-  const [queueIdx, setQueueIdx] = useState(0);
   const [queueLoaded, setQueueLoaded] = useState(false);
 
   const refreshStats = useCallback(async () => {
@@ -90,13 +91,15 @@ export default function Page() {
 
   useEffect(() => { if (papel) refreshStats(); }, [papel, refreshStats]);
 
+  useEffect(() => { setPagina(1); }, [query, semFoto]);
+
   useEffect(() => {
     if (!papel) return;
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       setLoading(true);
       try {
-        const res = await fetch('/api/items?q=' + encodeURIComponent(query.trim()) + (semFoto ? '&semfoto=1' : ''));
+        const res = await fetch('/api/items?q=' + encodeURIComponent(query.trim()) + (semFoto ? '&semfoto=1' : '') + '&pagina=' + pagina);
         const data = await res.json();
         setResults(data.items);
         setTotal(data.total);
@@ -106,7 +109,7 @@ export default function Page() {
       }
       setLoading(false);
     }, 150);
-  }, [query, semFoto, papel]);
+  }, [query, semFoto, papel, pagina]);
 
   async function openModal(item) {
     setModalItem(item);
@@ -155,7 +158,6 @@ export default function Page() {
       const res = await fetch('/api/confirm-queue');
       const data = await res.json();
       setQueue(data.items);
-      setQueueIdx(0);
     } catch (e) {
       setQueue([]);
     }
@@ -167,95 +169,18 @@ export default function Page() {
     if (next === 'confirmar' && !queueLoaded) loadQueue();
   }
 
-  async function decide(status) {
-    const item = queue[queueIdx];
-    if (!item) return;
+  async function decide(codigo, status) {
+    setQueue(prev => prev.filter(it => it.codigo !== codigo));
     try {
       await fetch('/api/reviews', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ codigo: item.codigo, status })
+        body: JSON.stringify({ codigo, status })
       });
-    } catch (e) { /* segue mesmo se falhar, tenta de novo depois */ }
-    setQueueIdx(i => i + 1);
+    } catch (e) { /* segue mesmo se falhar */ }
     refreshStats();
   }
 
-  async function entrar() {
-    setLoginErro('');
-    try {
-      const res = await fetch('/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ senha })
-      });
-      if (!res.ok) {
-        setLoginErro('Senha incorreta.');
-        return;
-      }
-      const data = await res.json();
-      setPapel(data.papel);
-      setSenha('');
-    } catch (e) {
-      setLoginErro('Nao foi possivel entrar agora.');
-    }
-  }
-
-  async function sair() {
-    try { await fetch('/api/logout', { method: 'POST' }); } catch (e) {}
-    setPapel(null);
-    setResults([]);
-    setQuery('');
-  }
-
-  async function excluirFoto() {
-    if (!modalItem) return;
-    if (!confirm('Excluir a foto deste item?')) return;
-    setUploadMsg({ text: 'Excluindo...', kind: '' });
-    try {
-      const res = await fetch('/api/photos?codigo=' + encodeURIComponent(modalItem.codigo), { method: 'DELETE' });
-      if (!res.ok) throw new Error('falha');
-      setModalDetail(prev => ({ ...prev, photo_url: null }));
-      setResults(prev => prev.map(it => it.codigo === modalItem.codigo ? { ...it, photo_url: null } : it));
-      setUploadMsg({ text: 'Foto excluida.', kind: 'ok' });
-      refreshStats();
-    } catch (e) {
-      setUploadMsg({ text: 'Nao foi possivel excluir.', kind: 'err' });
-    }
-  }
-
-  async function removerReferencia() {
-    if (!modalItem) return;
-    if (!confirm('Remover a foto/nota de referencia deste item?')) return;
-    setUploadMsg({ text: 'Removendo...', kind: '' });
-    try {
-      const res = await fetch('/api/referencias?codigo=' + encodeURIComponent(modalItem.codigo), { method: 'DELETE' });
-      if (!res.ok) throw new Error('falha');
-      setModalDetail(prev => ({ ...prev, ref_img_url: null, ref_note: null }));
-      setResults(prev => prev.map(it => it.codigo === modalItem.codigo ? { ...it, ref_img_url: null } : it));
-      setUploadMsg({ text: 'Referencia removida.', kind: 'ok' });
-      refreshStats();
-    } catch (e) {
-      setUploadMsg({ text: 'Nao foi possivel remover.', kind: 'err' });
-    }
-  }
-
-  async function marcarDuvida() {
-    if (!modalItem) return;
-    try {
-      await fetch('/api/duvidas', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ codigo: modalItem.codigo })
-      });
-      setDuvidaMsg('Marcado. Esse item entra na frente da fila de fotos.');
-      refreshStats();
-    } catch (e) {
-      setDuvidaMsg('Nao foi possivel marcar agora.');
-    }
-  }
-
-  const currentQueueItem = queue[queueIdx];
 
   if (papel === undefined) {
     return <main><div className="empty">Carregando...</div></main>;
@@ -352,7 +277,7 @@ export default function Page() {
             )}
             {results.length > 0 && (
               <>
-                <p className="resultcount">{query.trim() || semFoto ? total.toLocaleString('pt-BR') + ' resultado(s)' : total.toLocaleString('pt-BR') + ' itens no catalogo'}{total > results.length ? ' - mostrando 60, use a busca para filtrar' : ''}</p>
+                <p className="resultcount">{query.trim() || semFoto ? total.toLocaleString('pt-BR') + ' resultado(s)' : total.toLocaleString('pt-BR') + ' itens no catalogo'}</p>
                 <div className="grid">
                   {results.map(it => (
                     <button className="card" key={it.codigo} onClick={() => openModal(it)}>
@@ -382,56 +307,74 @@ export default function Page() {
                     </button>
                   ))}
                 </div>
+                {total > porPagina && (
+                  <div className="more" style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center' }}>
+                    <button onClick={() => { setPagina(p => Math.max(1, p - 1)); window.scrollTo(0, 0); }} disabled={pagina <= 1}>
+                      Anterior
+                    </button>
+                    <span style={{ fontSize: 13, color: 'var(--ink-soft)' }}>
+                      Pagina {pagina} de {Math.ceil(total / porPagina).toLocaleString('pt-BR')}
+                    </span>
+                    <button onClick={() => { setPagina(p => p + 1); window.scrollTo(0, 0); }} disabled={pagina >= Math.ceil(total / porPagina)}>
+                      Proxima
+                    </button>
+                  </div>
+                )}
               </>
             )}
           </div>
         )}
 
         {tab === 'confirmar' && (
-          <div className="confirmwrap">
+          <div>
             {!queueLoaded && <div className="confirmempty">Carregando...</div>}
-            {queueLoaded && !currentQueueItem && (
+            {queueLoaded && queue.length === 0 && (
               <div className="confirmempty">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><polyline points="20 6 9 17 4 12" /></svg>
-                <p>Nenhuma referencia pendente de confirmacao agora. Volte depois que mais lotes forem adicionados.</p>
+                <p>Nenhuma referencia pendente de confirmacao agora.</p>
               </div>
             )}
-            {queueLoaded && currentQueueItem && (
+            {queueLoaded && queue.length > 0 && (
               <>
-                <div className="confirmprogress">Item {queueIdx + 1} de {queue.length} pendentes</div>
-                <div className="confirmcard">
-                  {currentQueueItem.ref_img_url && (
-                    <div className="modal-photo" style={{ marginBottom: 14 }}>
-                      <img src={currentQueueItem.ref_img_url} alt="" onError={e => { e.target.parentElement.innerHTML = ''; }} />
+                <p className="resultcount">{queue.length} referencia(s) aguardando confirmacao</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {queue.map(item => (
+                    <div className="confirmcard" key={item.codigo} style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                      <div style={{ flex: '0 0 110px' }}>
+                        <div className="modal-photo" style={{ marginBottom: 0, maxHeight: 110 }}>
+                          {item.ref_img_url
+                            ? <img src={item.ref_img_url} alt="" onError={e => { e.target.style.display = 'none'; }} />
+                            : <Placeholder label="Sem foto" />}
+                        </div>
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <span className="code">{item.codigo}</span>
+                        <p className="modal-desc" style={{ marginTop: 8, fontSize: 14 }}>{item.descricao}</p>
+                        <div className="refnote">
+                          <ConfTag confidence={item.ref_confidence} />
+                          {item.ref_note}
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 10 }}>
+                          <a className="weblink" href={imgSearchUrl(item.codigo, item.descricao)} target="_blank" rel="noopener noreferrer" style={{ marginTop: 0 }}>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                            Ver na internet
+                          </a>
+                          {papel === 'edicao' && (
+                            <>
+                              <button className="btn btn-no" style={{ flex: '0 0 auto', padding: '0 14px' }} onClick={() => decide(item.codigo, 'nao')}>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                                Nao e isso
+                              </button>
+                              <button className="btn btn-yes" style={{ flex: '0 0 auto', padding: '0 14px' }} onClick={() => decide(item.codigo, 'sim')}>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                Sim, confere
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  )}
-                  <span className="code">{currentQueueItem.codigo}</span>
-                  <p className="modal-desc" style={{ marginTop: 10 }}>{currentQueueItem.descricao}</p>
-                  <div className="refnote">
-                    <ConfTag confidence={currentQueueItem.ref_confidence} />
-                    {currentQueueItem.ref_note}
-                  </div>
-                  <a className="weblink" href={imgSearchUrl(currentQueueItem.codigo, currentQueueItem.descricao)} target="_blank" rel="noopener noreferrer">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                    Ver fotos na internet
-                  </a>
-                  {papel === 'edicao' && (
-                  <div className="confirmbtns">
-                    <button className="btn btn-no" onClick={() => decide('nao')}>
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                      Nao e isso
-                    </button>
-                    <button className="btn btn-yes" onClick={() => decide('sim')}>
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
-                      Sim, confere
-                    </button>
-                  </div>
-                  )}
-                  <div style={{ textAlign: 'center', marginTop: 10 }}>
-                    <button className="btn" style={{ border: 'none', color: 'var(--ink-faint)' }} onClick={() => setQueueIdx(i => i + 1)}>
-                      Pular por agora
-                    </button>
-                  </div>
+                  ))}
                 </div>
               </>
             )}

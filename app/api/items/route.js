@@ -10,6 +10,8 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const q = (searchParams.get('q') || '').trim();
   const semFoto = searchParams.get('semfoto') === '1';
+  const pagina = Math.max(1, parseInt(searchParams.get('pagina') || '1', 10) || 1);
+  const POR_PAGINA = 60;
 
   const cond = [];
   const params = [];
@@ -38,7 +40,7 @@ export async function GET(request) {
               (r.img_url IS NULL),
               COALESCE(d.total, 0) DESC,
               i.descricao
-     LIMIT 60`,
+     LIMIT ${POR_PAGINA} OFFSET ${(pagina - 1) * POR_PAGINA}`,
     params
   );
 
@@ -50,5 +52,10 @@ export async function GET(request) {
     params
   );
 
-  return Response.json({ items: result.rows, total: countResult.rows[0].total });
+  return Response.json({
+    items: result.rows,
+    total: countResult.rows[0].total,
+    pagina,
+    porPagina: POR_PAGINA
+  });
 }
