@@ -1,8 +1,3 @@
-// Carrega data/items.json (planilha completa) e data/reference_notes.json
-// (referencias ja pesquisadas) no banco Postgres (Neon).
-// Rodar com: npm run seed
-// Precisa da variavel de ambiente DATABASE_URL (veja .env.example).
-
 const { query } = require('../lib/db');
 const fs = require('fs');
 const path = require('path');
@@ -55,6 +50,7 @@ async function main() {
   }
   console.log('Referencias importadas.');
   console.log('Seed finalizado.');
+  process.exit(0);
 }
 
 main().catch(err => {
