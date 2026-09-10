@@ -14,6 +14,13 @@ export async function POST(request) {
     return Response.json({ error: 'codigo e status (sim/nao) sao obrigatorios' }, { status: 400 });
   }
 
+  if (status === 'nao') {
+    // referencia errada: sai do catalogo
+    await query('DELETE FROM reference_notes WHERE codigo = $1', [codigo]);
+    await query('DELETE FROM reviews WHERE codigo = $1', [codigo]);
+    return Response.json({ ok: true, removida: true });
+  }
+
   await query(
     `INSERT INTO reviews (codigo, status, reviewed_at)
      VALUES ($1, $2, now())

@@ -224,6 +224,22 @@ export default function Page() {
     }
   }
 
+  async function removerReferencia() {
+    if (!modalItem) return;
+    if (!confirm('Remover a foto/nota de referencia deste item?')) return;
+    setUploadMsg({ text: 'Removendo...', kind: '' });
+    try {
+      const res = await fetch('/api/referencias?codigo=' + encodeURIComponent(modalItem.codigo), { method: 'DELETE' });
+      if (!res.ok) throw new Error('falha');
+      setModalDetail(prev => ({ ...prev, ref_img_url: null, ref_note: null }));
+      setResults(prev => prev.map(it => it.codigo === modalItem.codigo ? { ...it, ref_img_url: null } : it));
+      setUploadMsg({ text: 'Referencia removida.', kind: 'ok' });
+      refreshStats();
+    } catch (e) {
+      setUploadMsg({ text: 'Nao foi possivel remover.', kind: 'err' });
+    }
+  }
+
   async function marcarDuvida() {
     if (!modalItem) return;
     try {
@@ -453,6 +469,17 @@ export default function Page() {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
               Ver fotos na internet
             </a>
+            {papel === 'edicao' && !modalDetail?.photo_url && (modalDetail?.ref_img_url || modalDetail?.ref_note) && (
+              <div style={{ textAlign: 'center', marginTop: 8 }}>
+                <button
+                  className="btn"
+                  style={{ border: 'none', color: 'var(--red)', fontSize: 12.5 }}
+                  onClick={removerReferencia}
+                >
+                  Remover esta referencia
+                </button>
+              </div>
+            )}
             {papel === 'edicao' && (
               <div className="filerow">
                 <button className="btn btn-primary" onClick={() => fileInputRef.current?.click()}>

@@ -52,6 +52,13 @@ async function main() {
   }
   console.log('\nItens importados.');
 
+  const codigosAtuais = items.map(it => (it.i && it.i.length ? it.i : ('sys' + it.s)));
+  const rem = await query(
+    'DELETE FROM items WHERE codigo <> ALL($1::text[])',
+    [codigosAtuais]
+  );
+  console.log('Itens removidos do banco (fora da planilha atual):', rem.rowCount);
+
   console.log('Importando', Object.keys(refs).length, 'referencias...');
   for (const codigo of Object.keys(refs)) {
     const ref = refs[codigo];
