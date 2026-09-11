@@ -93,20 +93,23 @@ async function main() {
     console.log('Fotos do fornecedor registradas:', n);
   }
 
-  if (fs.existsSync(dirFichas)) {
-    const arquivos = fs.readdirSync(dirFichas).filter(f => /\.pdf$/i.test(f));
-    let n = 0;
-    for (const arq of arquivos) {
-      const codigo = arq.replace(/\.[^.]+$/, '');
+  // Fichas: data/fichas.json mapeia codigo do item -> arquivo em public/fichas
+  const arqMapa = path.join(__dirname, '../data/fichas.json');
+  if (fs.existsSync(arqMapa)) {
+    const mapaFichas = JSON.parse(fs.readFileSync(arqMapa, 'utf-8'));
+    let n = 0, faltando = 0;
+    for (const codigo of Object.keys(mapaFichas)) {
+      const nome = mapaFichas[codigo];
+      if (!fs.existsSync(path.join(dirFichas, nome))) { faltando++; continue; }
       const existe = await query('SELECT codigo FROM items WHERE codigo = $1', [codigo]);
       if (existe.rows.length === 0) continue;
       await query(
         'INSERT INTO fichas (codigo, nome_arquivo, enviada_em) VALUES ($1,$2,now()) ON CONFLICT (codigo) DO UPDATE SET nome_arquivo = EXCLUDED.nome_arquivo, enviada_em = now()',
-        [codigo, arq]
+        [codigo, nome]
       );
       n++;
     }
-    console.log('Fichas tecnicas registradas:', n);
+    console.log('Fichas tecnicas registradas:', n + (faltando ? ' (arquivo ausente em ' + faltando + ')' : ''));
   }
 
   console.log('Seed finalizado.');
