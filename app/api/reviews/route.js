@@ -21,12 +21,25 @@ export async function POST(request) {
     return Response.json({ ok: true, removida: true });
   }
 
+  // "sim, confere": se a referencia tem foto, ela vira a foto oficial do item
+  const r = await query('SELECT img_url FROM reference_notes WHERE codigo = $1', [codigo]);
+  const img = r.rows[0] && r.rows[0].img_url;
+
+  if (img && img.startsWith('/')) {
+    await query(
+      `INSERT INTO photos (codigo, url, uploaded_at) VALUES ($1,$2,now())
+       ON CONFLICT (codigo) DO UPDATE SET url = EXCLUDED.url, uploaded_at = now()`,
+      [codigo, img]
+    );
+    await query('DELETE FROM reference_notes WHERE codigo = $1', [codigo]);
+    await query('DELETE FROM duvidas WHERE codigo = $1', [codigo]);
+    return Response.json({ ok: true, virouFoto: true });
+  }
+
   await query(
-    `INSERT INTO reviews (codigo, status, reviewed_at)
-     VALUES ($1, $2, now())
+    `INSERT INTO reviews (codigo, status, reviewed_at) VALUES ($1,$2,now())
      ON CONFLICT (codigo) DO UPDATE SET status = EXCLUDED.status, reviewed_at = now()`,
     [codigo, status]
   );
-
   return Response.json({ ok: true });
 }
