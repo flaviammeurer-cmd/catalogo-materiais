@@ -58,6 +58,9 @@ export default function Page() {
   const [senha, setSenha] = useState('');
   const [loginErro, setLoginErro] = useState('');
   const [pagina, setPagina] = useState(1);
+  const [cliente, setCliente] = useState('');
+  const [clientes, setClientes] = useState([]);
+  const [novoCliente, setNovoCliente] = useState('');
   const porPagina = 60;
   const [duvidaMsg, setDuvidaMsg] = useState('');
   const [modalItem, setModalItem] = useState(null);
@@ -97,7 +100,17 @@ export default function Page() {
 
   useEffect(() => { if (papel) refreshStats(); }, [papel, refreshStats]);
 
-  useEffect(() => { setPagina(1); }, [query, semFoto]);
+  const carregarClientes = useCallback(async () => {
+    try {
+      const res = await fetch('/api/clientes');
+      const data = await res.json();
+      setClientes(Array.isArray(data.clientes) ? data.clientes : []);
+    } catch (e) { setClientes([]); }
+  }, []);
+
+  useEffect(() => { if (papel) carregarClientes(); }, [papel, carregarClientes]);
+
+  useEffect(() => { setPagina(1); }, [query, semFoto, cliente]);
 
   useEffect(() => {
     if (!papel) return;
@@ -105,7 +118,7 @@ export default function Page() {
     debounceRef.current = setTimeout(async () => {
       setLoading(true);
       try {
-        const res = await fetch('/api/items?q=' + encodeURIComponent(query.trim()) + (semFoto ? '&semfoto=1' : '') + '&pagina=' + pagina);
+        const res = await fetch('/api/items?q=' + encodeURIComponent(query.trim()) + (semFoto ? '&semfoto=1' : '') + (cliente ? '&cliente=' + encodeURIComponent(cliente) : '') + '&pagina=' + pagina);
         const data = await res.json();
         setResults(Array.isArray(data.items) ? data.items : []);
         setTotal(Number(data.total) || 0);
@@ -115,7 +128,7 @@ export default function Page() {
       }
       setLoading(false);
     }, 150);
-  }, [query, semFoto, papel, pagina]);
+  }, [query, semFoto, papel, pagina, cliente]);
 
   async function openModal(item) {
     setModalItem(item);
@@ -269,6 +282,25 @@ export default function Page() {
     }
   }
 
+  async function alterarCliente(nome, acao) {
+    if (!modalItem || !nome) return;
+    try {
+      const res = await fetch('/api/clientes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codigo: modalItem.codigo, cliente: nome, acao })
+      });
+      if (!res.ok) throw new Error('falha');
+      const data = await res.json();
+      setModalDetail(prev => ({ ...prev, clientes: data.clientes }));
+      setResults(prev => prev.map(it => it.codigo === modalItem.codigo ? { ...it, clientes: data.clientes } : it));
+      setNovoCliente('');
+      carregarClientes();
+    } catch (e) {
+      setUploadMsg({ text: 'Nao foi possivel alterar o cliente.', kind: 'err' });
+    }
+  }
+
   async function marcarDuvida() {
     if (!modalItem) return;
     try {
@@ -369,6 +401,17 @@ export default function Page() {
               >
                 Só os que faltam foto
               </button>
+              <select
+                className="tabbtn"
+                value={cliente}
+                onChange={e => setCliente(e.target.value)}
+                style={{ cursor: 'pointer', paddingRight: 26 }}
+              >
+                <option value="">Todos os clientes</option>
+                {clientes.map(cl => (
+                  <option key={cl.cliente} value={cl.cliente}>{cl.cliente} ({cl.total})</option>
+                ))}
+              </select>
               {stats.duvidas > 0 && (
                 <span className="stat" style={{ padding: '7px 12px' }}>
                   <b>{stats.duvidas}</b> marcados como dúvida
@@ -418,6 +461,13 @@ export default function Page() {
                       <div className="cardbody">
                         <span className="code">{it.codigo}</span>
                         <span className="desc">{it.descricao}</span>
+                        {Array.isArray(it.clientes) && it.clientes.length > 0 && (
+                          <span style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                            {it.clientes.map(cl => (
+                              <span key={cl} style={{ fontSize: 10, background: 'var(--surface-2)', border: '1px solid var(--line)', borderRadius: 999, padding: '1px 7px', color: 'var(--ink-soft)' }}>{cl}</span>
+                            ))}
+                          </span>
+                        )}
                         {it.tem_ficha && (
                           <span style={{ fontSize: 11, color: 'var(--blue)', display: 'flex', alignItems: 'center', gap: 4 }}>
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 11, height: 11 }}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
@@ -523,6 +573,35 @@ export default function Page() {
             </div>
             <p className="modal-desc">{modalItem.descricao}</p>
             <p className="modal-sys">Codigo interno do sistema: {modalItem.sistema_id}</p>
+            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
+              {(modalDetail?.clientes || []).map(cl => (
+                <span key={cl} style={{ fontSize: 12, background: 'var(--blue-bg)', color: 'var(--blue)', borderRadius: 999, padding: '3px 9px', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  {cl}
+                  {papel === 'edicao' && (
+                    <button
+                      onClick={() => alterarCliente(cl, 'remover')}
+                      style={{ border: 'none', background: 'none', color: 'var(--blue)', cursor: 'pointer', padding: 0, fontSize: 13, lineHeight: 1 }}
+                      title="Remover"
+                    >×</button>
+                  )}
+                </span>
+              ))}
+              {papel === 'edicao' && (
+                <>
+                  <input
+                    list="lista-clientes"
+                    placeholder="+ cliente"
+                    value={novoCliente}
+                    onChange={e => setNovoCliente(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') alterarCliente(novoCliente.trim(), 'adicionar'); }}
+                    style={{ fontSize: 12, border: '1px dashed var(--line-strong)', borderRadius: 999, padding: '3px 10px', width: 110, outline: 'none' }}
+                  />
+                  <datalist id="lista-clientes">
+                    {clientes.map(cl => <option key={cl.cliente} value={cl.cliente} />)}
+                  </datalist>
+                </>
+              )}
+            </div>
             {modalDetail && !modalDetail.photo_url && modalDetail.ref_note && (
               <div className="refnote">
                 <ConfTag confidence={modalDetail.ref_confidence} />

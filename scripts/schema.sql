@@ -43,3 +43,10 @@ CREATE TABLE IF NOT EXISTS fichas (
   nome_arquivo TEXT NOT NULL,
   enviada_em TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE TABLE IF NOT EXISTS item_clientes (
+  codigo TEXT NOT NULL REFERENCES items(codigo) ON DELETE CASCADE,
+  cliente TEXT NOT NULL,
+  PRIMARY KEY (codigo, cliente)
+);
+CREATE INDEX IF NOT EXISTS idx_item_clientes_cliente ON item_clientes (cliente);

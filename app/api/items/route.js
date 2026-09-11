@@ -10,6 +10,7 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const q = (searchParams.get('q') || '').trim();
   const semFoto = searchParams.get('semfoto') === '1';
+  const cliente = (searchParams.get('cliente') || '').trim();
   const pagina = Math.max(1, parseInt(searchParams.get('pagina') || '1', 10) || 1);
   const POR_PAGINA = 60;
 
@@ -23,6 +24,10 @@ export async function GET(request) {
   if (semFoto) {
     cond.push('p.codigo IS NULL');
   }
+  if (cliente) {
+    params.push(cliente);
+    cond.push('EXISTS (SELECT 1 FROM item_clientes ic WHERE ic.codigo = i.codigo AND ic.cliente = $' + params.length + ')');
+  }
   const where = cond.length ? 'WHERE ' + cond.join(' AND ') : '';
   const limite = ' LIMIT ' + POR_PAGINA + ' OFFSET ' + ((pagina - 1) * POR_PAGINA);
 
@@ -32,7 +37,8 @@ export async function GET(request) {
             r.img_url AS ref_img_url,
             r.confidence AS ref_confidence,
             COALESCE(d.total, 0) AS duvidas,
-            (f.codigo IS NOT NULL) AS tem_ficha
+            (f.codigo IS NOT NULL) AS tem_ficha,
+            COALESCE((SELECT array_agg(ic.cliente ORDER BY ic.cliente) FROM item_clientes ic WHERE ic.codigo = i.codigo), '{}') AS clientes
      FROM items i
      LEFT JOIN photos p ON p.codigo = i.codigo
      LEFT JOIN reference_notes r ON r.codigo = i.codigo

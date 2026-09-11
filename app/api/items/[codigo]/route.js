@@ -18,7 +18,8 @@ export async function GET(request, { params }) {
        r.img_url AS ref_img_url,
        r.source_site AS ref_source,
        rv.status AS review_status,
-       f.nome_arquivo AS ficha_nome
+       f.nome_arquivo AS ficha_nome,
+       COALESCE((SELECT array_agg(ic.cliente ORDER BY ic.cliente) FROM item_clientes ic WHERE ic.codigo = i.codigo), '{}') AS clientes
      FROM items i
      LEFT JOIN photos p ON p.codigo = i.codigo
      LEFT JOIN reference_notes r ON r.codigo = i.codigo

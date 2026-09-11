@@ -112,6 +112,26 @@ async function main() {
     console.log('Fichas tecnicas registradas:', n + (faltando ? ' (arquivo ausente em ' + faltando + ')' : ''));
   }
 
+  // Clientes: data/clientes.json (marcacao automatica pela descricao).
+  // Nao apaga o que a equipe marcou manualmente no site.
+  const arqClientes = path.join(__dirname, '../data/clientes.json');
+  if (fs.existsSync(arqClientes)) {
+    const mapaClientes = JSON.parse(fs.readFileSync(arqClientes, 'utf-8'));
+    let n = 0;
+    for (const codigo of Object.keys(mapaClientes)) {
+      const existe = await query('SELECT codigo FROM items WHERE codigo = $1', [codigo]);
+      if (existe.rows.length === 0) continue;
+      for (const cliente of mapaClientes[codigo]) {
+        await query(
+          'INSERT INTO item_clientes (codigo, cliente) VALUES ($1,$2) ON CONFLICT DO NOTHING',
+          [codigo, cliente]
+        );
+        n++;
+      }
+    }
+    console.log('Marcacoes de cliente aplicadas:', n);
+  }
+
   console.log('Seed finalizado.');
   process.exit(0);
 }
