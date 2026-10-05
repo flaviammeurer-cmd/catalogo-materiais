@@ -61,6 +61,8 @@ export default function Page() {
   const [cliente, setCliente] = useState('');
   const [clientes, setClientes] = useState([]);
   const [novoCliente, setNovoCliente] = useState('');
+  const [editandoTexto, setEditandoTexto] = useState(false);
+  const [rascunho, setRascunho] = useState('');
   const porPagina = 60;
   const [duvidaMsg, setDuvidaMsg] = useState('');
   const [modalItem, setModalItem] = useState(null);
@@ -135,6 +137,7 @@ export default function Page() {
     setModalDetail(null);
     setUploadMsg({ text: '', kind: '' });
     setDuvidaMsg('');
+    setEditandoTexto(false);
     try {
       const res = await fetch('/api/items/' + encodeURIComponent(item.codigo));
       const data = await res.json();
@@ -298,6 +301,25 @@ export default function Page() {
       carregarClientes();
     } catch (e) {
       setUploadMsg({ text: 'Nao foi possivel alterar o cliente.', kind: 'err' });
+    }
+  }
+
+  async function salvarTexto() {
+    if (!modalItem) return;
+    try {
+      const res = await fetch('/api/detalhes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codigo: modalItem.codigo, titulo: modalDetail?.det_titulo || '', texto: rascunho })
+      });
+      if (!res.ok) throw new Error('falha');
+      const vazio = !rascunho.trim();
+      setModalDetail(prev => ({ ...prev, det_texto: vazio ? null : rascunho.trim(), det_fonte: vazio ? null : 'Equipe' }));
+      setResults(prev => prev.map(it => it.codigo === modalItem.codigo ? { ...it, tem_texto: !vazio } : it));
+      setEditandoTexto(false);
+      setUploadMsg({ text: vazio ? 'Texto removido.' : 'Informacoes salvas.', kind: 'ok' });
+    } catch (e) {
+      setUploadMsg({ text: 'Nao foi possivel salvar as informacoes.', kind: 'err' });
     }
   }
 
@@ -468,6 +490,9 @@ export default function Page() {
                             ))}
                           </span>
                         )}
+                        {it.tem_texto && (
+                          <span style={{ fontSize: 11, color: 'var(--green)' }}>com explicacao</span>
+                        )}
                         {it.tem_ficha && (
                           <span style={{ fontSize: 11, color: 'var(--blue)', display: 'flex', alignItems: 'center', gap: 4 }}>
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 11, height: 11 }}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
@@ -573,6 +598,55 @@ export default function Page() {
             </div>
             <p className="modal-desc">{modalItem.descricao}</p>
             <p className="modal-sys">Codigo interno do sistema: {modalItem.sistema_id}</p>
+            {(modalDetail?.det_texto || papel === 'edicao') && (
+              <div style={{ border: '1px solid var(--line)', background: 'var(--surface-2)', borderRadius: 10, padding: '12px 14px', marginBottom: 14 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-soft)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Sobre este item
+                </div>
+                {!editandoTexto && modalDetail?.det_texto && (
+                  <>
+                    {modalDetail.det_titulo && (
+                      <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>{modalDetail.det_titulo}</div>
+                    )}
+                    {String(modalDetail.det_texto).split('\n').map((par, i) => (
+                      <p key={i} style={{ fontSize: 13.5, lineHeight: 1.55, margin: '0 0 8px' }}>{par}</p>
+                    ))}
+                    {modalDetail.det_fonte && (
+                      <div style={{ fontSize: 11, color: 'var(--ink-faint)' }}>Fonte: {modalDetail.det_fonte}</div>
+                    )}
+                  </>
+                )}
+                {!editandoTexto && !modalDetail?.det_texto && (
+                  <div style={{ fontSize: 13, color: 'var(--ink-soft)' }}>
+                    Ainda sem explicacao. Descreva o que e, para que serve e como identificar.
+                  </div>
+                )}
+                {editandoTexto && (
+                  <>
+                    <textarea
+                      value={rascunho}
+                      onChange={e => setRascunho(e.target.value)}
+                      rows={7}
+                      placeholder="O que e este item, para que serve, como identificar, diferenca para itens parecidos..."
+                      style={{ width: '100%', fontSize: 13.5, lineHeight: 1.5, border: '1px solid var(--line-strong)', borderRadius: 8, padding: 10, fontFamily: 'inherit' }}
+                    />
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                      <button className="btn btn-primary" onClick={salvarTexto}>Salvar</button>
+                      <button className="btn" onClick={() => setEditandoTexto(false)}>Cancelar</button>
+                    </div>
+                  </>
+                )}
+                {papel === 'edicao' && !editandoTexto && (
+                  <button
+                    className="btn"
+                    style={{ border: 'none', color: 'var(--blue)', fontSize: 12.5, marginTop: 4, height: 30, justifyContent: 'flex-start', padding: 0 }}
+                    onClick={() => { setRascunho(modalDetail?.det_texto || ''); setEditandoTexto(true); }}
+                  >
+                    {modalDetail?.det_texto ? 'Editar informacoes' : 'Adicionar informacoes'}
+                  </button>
+                )}
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
               {(modalDetail?.clientes || []).map(cl => (
                 <span key={cl} style={{ fontSize: 12, background: 'var(--blue-bg)', color: 'var(--blue)', borderRadius: 999, padding: '3px 9px', display: 'inline-flex', alignItems: 'center', gap: 5 }}>

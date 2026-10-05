@@ -50,3 +50,12 @@ CREATE TABLE IF NOT EXISTS item_clientes (
   PRIMARY KEY (codigo, cliente)
 );
 CREATE INDEX IF NOT EXISTS idx_item_clientes_cliente ON item_clientes (cliente);
+
+CREATE TABLE IF NOT EXISTS item_detalhes (
+  codigo TEXT PRIMARY KEY REFERENCES items(codigo) ON DELETE CASCADE,
+  titulo TEXT,
+  texto TEXT NOT NULL,
+  fonte TEXT,
+  confianca TEXT,
+  atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);

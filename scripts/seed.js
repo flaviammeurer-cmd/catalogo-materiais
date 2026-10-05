@@ -112,6 +112,29 @@ async function main() {
     console.log('Fichas tecnicas registradas:', n + (faltando ? ' (arquivo ausente em ' + faltando + ')' : ''));
   }
 
+  // Detalhes (texto explicativo) vindos dos catalogos de fornecedor/cliente.
+  // Nao sobrescreve o que a equipe escreveu pelo site (fonte = 'Equipe').
+  const arqDet = path.join(__dirname, '../data/detalhes.json');
+  if (fs.existsSync(arqDet)) {
+    const det = JSON.parse(fs.readFileSync(arqDet, 'utf-8'));
+    let n = 0;
+    for (const codigo of Object.keys(det)) {
+      const existe = await query('SELECT codigo FROM items WHERE codigo = $1', [codigo]);
+      if (existe.rows.length === 0) continue;
+      const d = det[codigo];
+      await query(
+        `INSERT INTO item_detalhes (codigo, titulo, texto, fonte, confianca, atualizado_em)
+         VALUES ($1,$2,$3,$4,$5,now())
+         ON CONFLICT (codigo) DO UPDATE SET titulo = EXCLUDED.titulo, texto = EXCLUDED.texto,
+           fonte = EXCLUDED.fonte, confianca = EXCLUDED.confianca, atualizado_em = now()
+         WHERE item_detalhes.fonte IS DISTINCT FROM 'Equipe'`,
+        [codigo, d.titulo || null, d.texto, d.fonte || null, d.confianca || null]
+      );
+      n++;
+    }
+    console.log('Textos explicativos carregados:', n);
+  }
+
   // Clientes: data/clientes.json (marcacao automatica pela descricao).
   // Nao apaga o que a equipe marcou manualmente no site.
   const arqClientes = path.join(__dirname, '../data/clientes.json');

@@ -38,6 +38,7 @@ export async function GET(request) {
             r.confidence AS ref_confidence,
             COALESCE(d.total, 0) AS duvidas,
             (f.codigo IS NOT NULL) AS tem_ficha,
+            EXISTS (SELECT 1 FROM item_detalhes dt WHERE dt.codigo = i.codigo) AS tem_texto,
             COALESCE((SELECT array_agg(ic.cliente ORDER BY ic.cliente) FROM item_clientes ic WHERE ic.codigo = i.codigo), '{}') AS clientes
      FROM items i
      LEFT JOIN photos p ON p.codigo = i.codigo
